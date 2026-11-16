@@ -8,6 +8,6 @@ SELECT
     account_id,
     CAST(touch_date AS DATE) AS touch_date,
     TRIM(touch_type) AS touch_type,
-    TRIM(source)     AS source
+    TRIM(channel)    AS source
 FROM raw_touches
 WHERE account_id IS NOT NULL;

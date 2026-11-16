@@ -4,7 +4,7 @@
 -- mapping lives in marts/mart_attribution.sql.
 CREATE OR REPLACE TABLE stg_program_spend AS
 SELECT
-    TRIM(quarter)  AS year_quarter,
+    TRIM(year_quarter) AS year_quarter,
     TRIM(program)  AS program,
     CAST(spend_usd AS DECIMAL(18,2)) AS spend_usd
 FROM raw_program_spend;

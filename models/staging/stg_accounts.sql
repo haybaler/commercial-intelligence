@@ -9,7 +9,7 @@ SELECT
     LOWER(TRIM(account_type)) AS account_type,
     LOWER(TRIM(tier))   AS tier,
     TRIM(territory)     AS territory,
-    TRIM(org)           AS org
+    LOWER(TRIM(account_type)) AS org
 FROM raw_accounts
 WHERE account_id IS NOT NULL
 QUALIFY ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY account_name) = 1;

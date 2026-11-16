@@ -61,8 +61,8 @@ export default function Page() {
               Quillmere Bio — Commercial Intelligence
             </h1>
             <p className="mt-1 text-sm text-muted max-w-[70ch]">
-              A life-sciences tools company&apos;s revenue engine, end to end: 2,957 synthetic
-              orders from 400 accounts, modeled in SQL, queried live from a DuckDB warehouse in
+              A life-sciences tools company&apos;s revenue engine, end to end: 1,507 synthetic
+              orders from 248 accounts, modeled in SQL, queried live from a DuckDB warehouse in
               this browser.
             </p>
           </div>

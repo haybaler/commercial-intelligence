@@ -22,10 +22,12 @@ WITH attributed AS (
         d.org,
         d.first_order_date,
         d.first_touch_date AS account_first_touch_date,
-        -- last-touch: most recent touch within the 90-day influence window
+        -- last-touch: most recent campaign touch within 90 days; acquisition
+        -- touches remain in first-touch credit rather than inflating both models
         (SELECT t.source
            FROM stg_touches t
           WHERE t.account_id = o.account_id
+            AND t.touch_type = 'last'
             AND t.touch_date <= o.order_date
             AND t.touch_date >  o.order_date - INTERVAL 90 DAYS
           ORDER BY t.touch_date DESC
@@ -33,6 +35,7 @@ WITH attributed AS (
         (SELECT MAX(t.touch_date)
            FROM stg_touches t
           WHERE t.account_id = o.account_id
+            AND t.touch_type = 'last'
             AND t.touch_date <= o.order_date
             AND t.touch_date >  o.order_date - INTERVAL 90 DAYS) AS lt_date,
         -- first-touch source at account level: the source of the earliest
@@ -66,8 +69,8 @@ SELECT
     revenue,
     channel,
     lead_source,
-    -- new vs repeat: first-ever order for the account?
-    order_date = first_order_date AS is_new_account_order,
+    -- new vs repeat: preserved from the order simulation at order grain
+    is_new_account_order,
     first_order_date,
     -- attribution
     lt_source,

@@ -17,35 +17,37 @@ export interface AskResult {
   answer: string;
   columns: string[];
   rows: Row[];
+  executionMs: number;
 }
 
 export interface AskContext {
-  asOfQuarter: string; // e.g. "2026-Q4"
+  asOfQuarter: string; // e.g. "2024-Q4"
 }
 
 const ACCOUNT_TYPES: Record<string, string> = {
-  biopharma: "biopharma",
-  cdmo: "CDMO",
-  cro: "CRO",
-  academic: "academic",
-  "clinical lab": "clinical lab",
-  "clinical labs": "clinical lab",
-  oem: "OEM",
+  biopharma: "biopharma r&d",
+  "biopharma r&d": "biopharma r&d",
+  cdmo: "cdmo / cro",
+  cro: "cdmo / cro",
+  "cdmo / cro": "cdmo / cro",
+  academic: "academic research lab",
+  "academic research lab": "academic research lab",
+  "clinical lab": "hospital / clinical lab",
+  "clinical labs": "hospital / clinical lab",
+  hospital: "hospital / clinical lab",
+  industrial: "industrial / applied sciences",
+  government: "government / public health",
+  agbio: "agbio / food sciences",
 };
 
 const PRODUCT_LINES: Record<string, string> = {
-  "cell mimic": "Cell Mimic Controls",
-  "cell mimic controls": "Cell Mimic Controls",
-  "assay reagent": "Assay Reagents",
-  "assay reagents": "Assay Reagents",
-  "flow consumable": "Flow Consumables",
-  "flow consumables": "Flow Consumables",
-  "instrument service": "Instrument Services",
-  "instrument services": "Instrument Services",
-  "custom cell": "Custom Cell Engineering",
-  "custom cell engineering": "Custom Cell Engineering",
-  "oem component": "OEM Components",
-  "oem components": "OEM Components",
+  instruments: "Instruments",
+  instrument: "Instruments",
+  consumables: "Consumables",
+  reagents: "Reagents",
+  software: "Software",
+  services: "Services",
+  "custom projects": "Custom Projects",
 };
 
 const CHANNELS: Record<string, string> = {
@@ -73,16 +75,27 @@ const LEAD_SOURCES: Record<string, string> = {
   conference: "Trade Show",
   partner: "Partner",
   referral: "Referral",
+  "field demo": "Field Demo",
+  "field demos": "Field Demo",
+  outbound: "Outbound Sales",
+  "outbound sales": "Outbound Sales",
 };
 
 const TERRITORIES: Record<string, string> = {
-  "us-west": "US-West",
-  "us-east": "US-East",
-  "us-central": "US-Central",
-  "eu-north": "EU-North",
-  "eu-south": "EU-South",
-  apac: "APAC",
-  europe: "EU-North",
+  "na-west": "NA-West",
+  "na-east": "NA-East",
+  "na-central": "NA-Central",
+  dach: "DACH",
+  uki: "UKI",
+  nordics: "Nordics",
+  benelux: "Benelux",
+  france: "France",
+  "apac-japan": "APAC-Japan",
+  japan: "APAC-Japan",
+  "apac-anz": "APAC-ANZ",
+  anz: "APAC-ANZ",
+  "apac-singapore": "APAC-Singapore",
+  singapore: "APAC-Singapore",
 };
 
 const ORGS: Record<string, string> = {
@@ -105,23 +118,23 @@ interface Parsed {
 }
 
 const GROUP_DIMS: Array<[RegExp, string, string, string]> = [
-  [/ by (product line|line)s?$/, "product_line", "product line", "product_line"],
-  [/ by (account )?types?$/, "account_type", "account type", "account_type"],
-  [/ by territories$| by territory$/, "territory", "territory", "territory"],
-  [/ by (sales )?channels?$/, "channel", "channel", "channel"],
-  [/ by (lead )?sources?$/, "lt_source", "lead source", "lead_source"],
-  [/ by quarters?$| per quarters?$/, "year_quarter", "quarter", "year_quarter"],
-  [/ by months?$| per months?$/, "order_month", "month", "order_month"],
-  [/ by programs?$/, "program", "program", "program"],
-  [/ by orgs?$| by region$/, "org", "org", "org"],
-  [/ by (sku|skus)$/, "sku", "SKU", "sku"],
+  [/ by (product line|line)s?/, "product_line", "product line", "product_line"],
+  [/ by (account )?types?/, "account_type", "account type", "account_type"],
+  [/ by territories| by territory/, "territory", "territory", "territory"],
+  [/ by (sales )?channels?/, "channel", "channel", "channel"],
+  [/ by (lead )?sources?/, "lt_source", "lead source", "lead_source"],
+  [/ by quarters?| per quarters?/, "year_quarter", "quarter", "year_quarter"],
+  [/ by months?| per months?/, "order_month", "month", "order_month"],
+  [/ by programs?/, "program", "program", "program"],
+  [/ by orgs?| by region/, "org", "org", "org"],
+  [/ by (sku|skus)/, "sku", "SKU", "sku"],
 ];
 
 export const EXAMPLE_QUESTIONS = [
   "how much catalog revenue came from biopharma in Q3",
-  "revenue by product line in 2026",
-  "what share of revenue was marketing influenced in Q3 2026",
-  "top 10 accounts by revenue in 2026",
+  "revenue by product line in 2024",
+  "what share of revenue was marketing influenced in Q3 2024",
+  "top 10 accounts by revenue in 2024",
   "orders by account type by quarter",
   "return per dollar for paid search by quarter",
   "revenue from trade shows by territory",
@@ -161,7 +174,7 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
          .replace(/of total/g, " ")
          .replace(/(what |which )?(is |was )?the share/g, " ");
     p.signals++;
-  } else if (/\baccounts\b/.test(q) && !/by account|revenue per account/.test(q)) {
+  } else if (/\baccounts\b/.test(q) && !/by account|revenue per account|revenue/.test(q)) {
     p.metric = "accounts";
     q = q.replace(/how many (buying )?accounts|number of (buying )?accounts|buying accounts/g, " ");
     p.signals++;
@@ -184,11 +197,14 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
   }
 
   // ---- time ----------------------------------------------------------------
-  const knownQuarters: string[] = [];
-  for (let y = 2024; y <= 2026; y++) {
-    for (let k = 1; k <= 4; k++) knownQuarters.push(`${y}-Q${k}`);
-  }
-  const maxFull = shiftQuarter(ctx.asOfQuarter, -1); // last completed quarter
+  const latest = ctx.asOfQuarter;
+  const latestYear = Number(latest.slice(0, 4));
+  const latestQuarter = Number(latest.slice(-1));
+  const lastQuarter = shiftQuarter(latest, -1);
+  const attributionMetric = p.metric === "return_per_dollar" || p.metric === "spend";
+  const yearFilter = (year: number) => attributionMetric
+    ? `year_quarter LIKE '${year}-%'`
+    : `order_year = ${year}`;
 
   let m = q.match(/\b(20\d\d)[ -]?q([1-4])\b/);
   if (m) {
@@ -196,34 +212,37 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
     p.timeDesc = `${m[1]} Q${m[2]}`;
     q = q.replace(m[0], " ");
     p.signals++;
-  } else if ((m = q.match(/\bq([1-4])\b(?: of (20\d\d))?/))) {
-    const year = m[2] ?? maxFull.slice(0, 4);
-    p.filters.push(`year_quarter = '${year}-Q${m[1]}'`);
-    p.timeDesc = `${year} Q${m[1]}${m[2] ? "" : " (most recent year with that quarter)"}`;
+  } else if ((m = q.match(/\bq([1-4])\b(?:\s+(?:of\s+)?(20\d\d))?/))) {
+    const quarter = Number(m[1]);
+    // A bare quarter means its most recent occurrence in the available data,
+    // including the latest quarter itself (all periods in this demo are full).
+    const year = m[2] ? Number(m[2]) : latestYear - (quarter > latestQuarter ? 1 : 0);
+    p.filters.push(`year_quarter = '${year}-Q${quarter}'`);
+    p.timeDesc = `${year} Q${quarter}${m[2] ? "" : " (most recent matching quarter)"}`;
     q = q.replace(m[0], " ");
     p.signals++;
   } else if (/last quarter/.test(q)) {
-    p.filters.push(`year_quarter = '${maxFull}'`);
-    p.timeDesc = maxFull.replace("-Q", " Q");
+    p.filters.push(`year_quarter = '${lastQuarter}'`);
+    p.timeDesc = `${lastQuarter.replace("-Q", " Q")} (quarter before latest)`;
     q = q.replace(/last quarter/g, " ");
     p.signals++;
   } else if (/this quarter/.test(q)) {
-    p.filters.push(`year_quarter = '${ctx.asOfQuarter}'`);
-    p.timeDesc = `${ctx.asOfQuarter.replace("-Q", " Q")} (partial)`;
+    p.filters.push(`year_quarter = '${latest}'`);
+    p.timeDesc = `${latest.replace("-Q", " Q")} (latest available quarter)`;
     q = q.replace(/this quarter/g, " ");
     p.signals++;
   } else if (/this year/.test(q)) {
-    p.filters.push(`order_year = ${maxFull.slice(0, 4)}`);
-    p.timeDesc = String(maxFull.slice(0, 4));
+    p.filters.push(yearFilter(latestYear));
+    p.timeDesc = `${latestYear} (latest available year)`;
     q = q.replace(/this year/g, " ");
     p.signals++;
   } else if (/last year/.test(q)) {
-    p.filters.push(`order_year = ${Number(maxFull.slice(0, 4)) - 1}`);
-    p.timeDesc = String(Number(maxFull.slice(0, 4)) - 1);
+    p.filters.push(yearFilter(latestYear - 1));
+    p.timeDesc = String(latestYear - 1);
     q = q.replace(/last year/g, " ");
     p.signals++;
   } else if ((m = q.match(/\b(20\d\d)\b/))) {
-    p.filters.push(`order_year = ${m[1]}`);
+    p.filters.push(yearFilter(Number(m[1])));
     p.timeDesc = m[1];
     q = q.replace(m[0], " ");
     p.signals++;
@@ -257,17 +276,22 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
     "Paid Search": "Paid Search",
     "Organic Search": "Organic & Content",
     "Content": "Organic & Content",
-    "Referral": "Organic & Content",
+    "Referral": "Referral",
     "Email": "Email Nurture",
     "Webinar": "Webinars",
     "Trade Show": "Trade Shows",
     "Partner": "Partner Marketing",
+    "Field Demo": "Field Demos",
+    "Outbound Sales": "Outbound Sales",
   };
+  const attributionFilter = p.metric === "return_per_dollar" || p.metric === "spend";
   scan(
     LEAD_SOURCES,
-    p.metric === "return_per_dollar" || p.metric === "spend" ? "program" : "lt_source",
+    attributionFilter ? "program" : "lt_source",
     (v) => v,
-    (v) => `program = '${SOURCE_TO_PROGRAM[v] ?? v}'`
+    (v) => attributionFilter
+      ? `program = '${SOURCE_TO_PROGRAM[v] ?? v}'`
+      : `lt_source = '${v}'`
   );
   scan(TERRITORIES, "territory", (v) => v, (v) => `territory = '${v}'`);
   scan(ORGS, "org", (v) => v, (v) => `org = '${v}'`);
@@ -279,7 +303,7 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
     p.signals++;
   }
   if (/\bcustom\b/.test(q)) {
-    p.filters.push(`order_type = 'custom'`);
+    p.filters.push(`order_type = 'custom synthesis'`);
     p.filterDesc.push("custom");
     q = q.replace(/\bcustom\b/g, " ");
     p.signals++;
@@ -298,6 +322,7 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
   }
 
   // ---- group-by (up to two dimensions, matched greedily) ---------------------
+  q = ` ${q.replace(/\s+/g, " ").trim()}`;
   for (const [re, dim, label] of GROUP_DIMS) {
     if (p.groupDims.length >= 2) break;
     if (re.test(q)) {
@@ -371,7 +396,7 @@ export function parseQuestion(question: string, ctx: AskContext): Parsed {
     p.groupDims = [];
     p.signals++;
   }
-  if (/top accounts|largest accounts|biggest accounts/.test(q)) {
+  if (/top accounts|largest accounts|biggest accounts/.test(q) || (p.topN && /^\s*accounts\b/.test(q))) {
     p.topDim = "account_name";
     if (!p.topN) p.topN = 10;
     p.groupDims = []; // account grain overrides a by-dimension
@@ -482,7 +507,7 @@ function renderValue(p: Parsed, row: Row, key: string): string {
   if (v == null) return "—";
   if (p.metric === "revenue" || key.toLowerCase().includes("revenue")) return fmtMoney(Number(v));
   if (p.metric === "influenced_share" || key === "influenced_share_pct") return fmtPct(Number(v));
-  if (p.metric === "return_per_dollar" || key === "return_per_dollar") return `$${Number(v).toFixed(2)}`;
+  if (p.metric === "return_per_dollar" || key === "return_per_dollar") return `${Number(v).toFixed(1)}x`;
   if (typeof v === "number") return fmtNum(v);
   return String(v);
 }
@@ -496,18 +521,24 @@ export async function ask(wh: Warehouse, question: string): Promise<AskResult> {
     throw new Error(
       "I couldn't map that onto the warehouse schema. I understand questions with a metric " +
         "(revenue, orders, units, accounts, spend), filters (account types, product lines, catalog vs custom, " +
-        "channels, lead sources, territories, marketing-influenced), a time window (Q3, 2026, last quarter), " +
+        "channels, lead sources, territories, marketing-influenced), a time window (Q3, 2024, last quarter), " +
         "and a group-by (by quarter, by product line, by territory…). Try one of the examples."
     );
   }
 
-  const { sql } = buildSql(p);
+  const { sql, from } = buildSql(p);
   let rows: Row[];
+  const startedAt = performance.now();
   try {
     rows = await wh.run(sql);
   } catch (e) {
-    throw new Error(`The generated SQL failed against the warehouse: ${(e as Error).message}`);
+    const detail = (e as Error).message;
+    if (/table|does not exist|not found/i.test(detail)) {
+      throw new Error(`This question requires ${from}, but that table is unavailable. Rebuild or reload the warehouse; no answer was substituted.`);
+    }
+    throw new Error(`The generated SQL failed against the warehouse: ${detail}`);
   }
+  const executionMs = Math.round(performance.now() - startedAt);
 
   const valueKey =
     p.metric === "revenue" ? "revenue"
@@ -540,5 +571,5 @@ export async function ask(wh: Warehouse, question: string): Promise<AskResult> {
     answer = `${scope}:`;
   }
 
-  return { sql, answer, columns, rows };
+  return { sql, answer, columns, rows, executionMs };
 }

@@ -37,7 +37,7 @@ export function AskView({ wh }: { wh: Warehouse }) {
         return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
       }
       if (col === "influenced_share_pct") return `${v.toFixed(1)}%`;
-      if (col === "return_per_dollar") return `$${v.toFixed(2)}`;
+      if (col === "return_per_dollar") return `${v.toFixed(1)}x`;
       return v.toLocaleString("en-US");
     }
     return String(v);
@@ -83,6 +83,15 @@ export function AskView({ wh }: { wh: Warehouse }) {
         </div>
       </section>
 
+      <section className="card p-5" aria-labelledby="ask-limits">
+        <h3 id="ask-limits" className="text-sm font-semibold">Limits</h3>
+        <ul className="mt-2 space-y-1.5 text-xs text-muted leading-relaxed list-disc pl-4">
+          <li><strong className="text-ink">Supported:</strong> revenue, orders, units, buying accounts, program spend and return per dollar; named product lines, account types, lead sources and territories; quarter/year windows; and the listed groupings or top-N rankings.</li>
+          <li><strong className="text-ink">Refused:</strong> questions the rule parser cannot map, forecasts, unsupported dimensions, and any write or schema-change request. It returns an explanation instead of guessing.</li>
+          <li><strong className="text-ink">Unavailable tables:</strong> the query stops, names the required table, and asks for a warehouse rebuild or reload. No cached, estimated or fabricated answer is substituted.</li>
+        </ul>
+      </section>
+
       {error && (
         <div className="card border-brick/40 bg-brick/5 p-4 text-sm text-brick" role="alert">
           {error}
@@ -91,7 +100,10 @@ export function AskView({ wh }: { wh: Warehouse }) {
 
       {result && (
         <div ref={resultRef} className="card p-5">
-          <div className="text-lg font-semibold">{result.answer}</div>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="text-lg font-semibold">{result.answer}</div>
+            <div className="text-xs text-muted num" aria-label="Query execution time">{result.executionMs} ms</div>
+          </div>
           {result.rows.length > 0 && (
             <div className="mt-4 overflow-x-auto">
               <table className="w-full table-base min-w-[480px]">

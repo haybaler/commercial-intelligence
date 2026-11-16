@@ -93,6 +93,7 @@ ask-box answer is a real SQL query against the modeled marts.
 - **Why:** a hiring manager can click a deploy preview and the whole thing
   works — no API keys, no server, no "the demo database is down." It also
   proves the models are portable: they are plain SQL files, not an ORM.
+- **Why not Postgres:** at this size, DuckDB provides the analytical SQL engine without provisioning, securing, or hosting a server; Postgres would add operational overhead without improving the demo.
 - **Tradeoff:** the warehouse is a snapshot, not live data; first load fetches
   ~4 MB; and browser memory caps how far this scales. The same `.sql` files
   run against BigQuery or Postgres with dialect edits (below), which is the
@@ -123,18 +124,18 @@ in that window; first-touch source is the account's earliest touch ever.
 - **Why:** last-touch flatters closers (paid search, webinars near the order);
   first-touch flatters brand programs (everything traces back to them). A
   single model choice would be quietly self-serving; showing both, with the
-  gap visible, is the honest version of the number. The influence share rising
-  over the 24 months (roughly a third of orders early, ~three quarters late)
-  is the shape a maturing demand engine actually has.
+  gap visible, is the honest version of the number. The influence share is
+  reported quarter by quarter without claiming a causal trend.
 - **Tradeoff:** credit is not causation. This is *credited* revenue, not
   proven-incremental revenue — there is no holdout, no geo experiment. The UI
-  says so on the page, and it should. Anyone who claims incrementality from
-  touch data alone is overselling.
+  says so on the page, and it should. Program ROMI is calibrated to a plausible
+  3–8x range; credited revenue still must not be read as incrementality.
 
 ### 4. Program spend mapped to lead sources explicitly, in SQL
 
 Budget owners name programs one way ("Organic & Content"); HubSpot lead
-sources name them another ("Organic Search," "Content," "Referral"). The
+sources name them another ("Organic Search" and "Content" roll up together;
+"Referral" stays separate). The
 mapping lives in `mart_attribution.sql` as an explicit `VALUES` table, not
 hidden in a join.
 
@@ -151,8 +152,10 @@ hidden in a join.
   pollute the list).
 - **UNDER-BUYING** — trailing two quarters < 50% of the prior two quarters.
 - **WATCH** — trailing two quarters 50–75% of prior.
-- **HEALTHY** — everything else; accounts with under two quarters of history
-  are healthy by definition (not enough evidence to flag).
+- **HEALTHY** — everything else with at least $25k lifetime revenue.
+- **BELOW THRESHOLD** — under $25k lifetime revenue; retained in the mart but
+  ineligible for GONE QUIET, UNDER-BUYING, or WATCH flags. The UI working list
+  is the top 30 GONE QUIET / UNDER-BUYING accounts by lifetime revenue.
 
 "Versus their segment" is trailing-6-month revenue against the median of the
 account's *own type* (biopharma vs. biopharma, OEM vs. OEM).
@@ -200,7 +203,7 @@ repeat visits (PWA).
 
 ## What I simplified about the synthetic data
 
-The generator (`scripts/generate_data.py`, seeded with `np.random.default_rng(42)`,
+The generator (`scripts/generate_data.py`, seeded with `random.Random(42)`,
 fully reproducible) deliberately compresses reality. Knowing where the seams
 are is part of the demo:
 
@@ -216,21 +219,20 @@ are is part of the demo:
   date; there are no campaign hierarchies, no touch cost per row (spend is
   quarterly at program level), no dark-funnel activity we can't see. Real
   HubSpot data has all of those problems.
-- **Six programs, six quarters of spend per program, 54 spend rows.** Real
+- **Nine programs, eight quarters of spend per program, 72 spend rows.** Real
   marketing budgets carry headcount, agencies, and tooling that never map to a
   lead source at all.
-- **Influence is planted, not inferred.** The generator raises each account's
-  responsiveness over the 24 months (roughly a third of orders influenced
-  early, ~three quarters late), which produces the rising story arc. Real
-  attribution has to survive confounding: the accounts that respond to
-  marketing were often going to buy anyway.
+- **Influence is planted, not inferred.** First orders and repeat orders have
+  fixed campaign-influence probabilities; real attribution has to survive
+  confounding because accounts that respond to marketing were often going to
+  buy anyway.
 - **No returns, no disputes, no FX.** Everything is USD, everything ships.
-- **Seasonality is a multiplier, not a mystery.** Sep/Oct conference season
-  peaks and a December dip are written into the monthly demand curve, so the
-  charts look like a real instruments-and-consumables business.
+- **Growth is a controlled quarterly path, not a random collapse.** The generator
+  targets 24–38 new accounts per quarter, mostly 8–20% QoQ revenue growth with
+  two soft quarters, and a catalog revenue share rising from 40% to 60%.
 
-The numbers are tuned to be plausible for a mid-size tools company (~$34M over
-24 months, ~$4–5M per quarter at maturity, 400 accounts, ~2,950 orders), not
+The numbers are tuned to be plausible for a mid-size tools company (~$18.2M over
+24 months, $1.4M growing to $3.3M per quarter, 248 accounts, 1,507 orders), not
 to mirror any real company. Any resemblance to an actual employer's metrics
 is deliberate in shape only.
 
@@ -278,15 +280,16 @@ and the seams are labeled:
 
 Built and checked end to end, not stubbed:
 
-- Warehouse build validates: 2,957 orders in `fct_orders`, 400 accounts in
+- Warehouse build validates: 1,507 orders in `fct_orders`, 248 accounts in
   `dim_accounts`, 0 rejected order lines, 0 unmatched accounts, and a
-  health-flag distribution of 192 HEALTHY / 118 GONE QUIET / 61 UNDER-BUYING /
-  26 WATCH / 3 NEVER ORDERED.
-- All four views exercised in a real browser (Chromium) against the static
-  build: executive KPIs, attribution table and ROI chart, health filtering
-  (including the 118-account GONE QUIET list), and the ask box answering
-  revenue, superlative, ROI, and multi-dimension questions with zero console
-  errors and no layout overflow at mobile width.
+  health distribution of 70 HEALTHY / 73 GONE QUIET / 16 UNDER-BUYING /
+  5 WATCH / 84 BELOW THRESHOLD. No flagged account is below $25k lifetime
+  revenue; the default working list contains 30 accounts and $5.55M at risk.
+- Strict TypeScript and the static production build pass. All four views are
+  exercised in Chromium: executive KPIs, attribution rankings and 3–8x ROMI,
+  the top-30 health list, and all eight ask-box examples plus refusal behavior.
+  Bare quarters name the period used; query timing is rounded to whole
+  milliseconds; browser checks report zero console errors.
 
 ## Repository layout
 

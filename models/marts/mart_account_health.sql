@@ -79,6 +79,10 @@ SELECT
     END AS ratio_to_segment_median,
     CASE
         WHEN a.account_id IS NULL THEN 'NEVER ORDERED'
+        -- Save plays are reserved for accounts with enough lifetime value to
+        -- justify commercial attention; small one-and-done records stay visible
+        -- in the mart but do not become health flags.
+        WHEN COALESCE(a.total_revenue, 0) < 25000 THEN 'BELOW THRESHOLD'
         WHEN CAST((SELECT as_of FROM bounds) - a.last_order_date AS INTEGER) > 120
              AND a.last_order_date > (SELECT as_of FROM bounds) - INTERVAL 24 MONTHS
             THEN 'GONE QUIET'

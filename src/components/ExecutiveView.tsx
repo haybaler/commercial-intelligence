@@ -5,42 +5,36 @@ import { fmtGrowth, fmtMoney, fmtNum, fmtPct } from "@/lib/format";
 import { Columns, LineChart, StackedColumns } from "./charts";
 
 const LINE_ORDER = [
-  "Cell Mimic Controls",
-  "Assay Reagents",
-  "Flow Consumables",
-  "Instrument Services",
-  "Custom Cell Engineering",
-  "OEM Components",
+  "Consumables",
+  "Reagents",
+  "Instruments",
+  "Software",
+  "Services",
+  "Custom Projects",
 ];
 const LINE_COLORS: Record<string, string> = {
-  "Cell Mimic Controls": "#0E7A66",
-  "Assay Reagents": "#24537F",
-  "Flow Consumables": "#7A4E7E",
-  "Instrument Services": "#B7791F",
-  "Custom Cell Engineering": "#B0413E",
-  "OEM Components": "#3E7C4F",
+  Consumables: "#0E7A66",
+  Reagents: "#24537F",
+  Instruments: "#7A4E7E",
+  Software: "#B7791F",
+  Services: "#3E7C4F",
+  "Custom Projects": "#B0413E",
 };
 
 export function ExecutiveView({ data }: { data: DashboardData }) {
   const { quarterly, mix } = data;
-  // quarters with < 200 orders are partial periods (2024-Q4, 2026-Q4)
-  const full = quarterly.filter((q) => q.orders >= 200);
-  const latest = full[full.length - 1];
-  const prior = full[full.length - 2];
-  const yearAgo = full[full.length - 5]; // same quarter last year
+  const latest = quarterly[quarterly.length - 1];
+  const prior = quarterly[quarterly.length - 2];
+  const yearAgo = quarterly[quarterly.length - 5]; // same quarter last year
   const total = quarterly.reduce((s, q) => s + q.revenue, 0);
   const influencedLatest = latest?.influenced_share ?? 0;
   const influencedYearAgo = yearAgo?.influenced_share ?? 0;
 
-  const quarters = quarterly.map((q) => q.year_quarter.replace(/^20/, "").replace("-Q", " Q"));
-  // 2026-Q4 is a partial quarter (Oct only) -- mark it in labels
   const quarterLabels = quarterly.map((q) =>
-    q.year_quarter === "2026-Q4" ? "Q4* " : q.year_quarter.replace(/^20/, "").replace("-Q", " Q")
+    q.year_quarter.replace(/^20/, "").replace("-Q", " Q")
   );
 
-  const mixQuarters = [...new Set(mix.map((m) => m.year_quarter))].filter(
-    (q) => q !== "2026-Q4"
-  );
+  const mixQuarters = [...new Set(mix.map((m) => m.year_quarter))];
   const mixSeries = LINE_ORDER.map((line) => ({
     name: line,
     color: LINE_COLORS[line],
@@ -55,7 +49,7 @@ export function ExecutiveView({ data }: { data: DashboardData }) {
         <Kpi
           label="Revenue · 24 months"
           value={fmtMoney(total)}
-          sub="synthetic, Nov 2024 – Oct 2026"
+          sub="synthetic, Jan 2023 – Dec 2024"
         />
         <Kpi
           label={`Revenue · ${latest.year_quarter}`}
@@ -78,7 +72,7 @@ export function ExecutiveView({ data }: { data: DashboardData }) {
         <section className="card p-5 lg:col-span-3">
           <h3 className="text-lg font-semibold">Revenue by quarter</h3>
           <p className="text-sm text-muted mb-3">
-            Growth with conference-season peaks (Sep–Oct). *Q4 2026 is October only.
+            Quarterly order revenue across 24 months. All eight quarters are complete.
           </p>
           <Columns
             data={quarterly.map((q, i) => ({
@@ -118,8 +112,8 @@ export function ExecutiveView({ data }: { data: DashboardData }) {
         <section className="card p-5 lg:col-span-3">
           <h3 className="text-lg font-semibold">Revenue mix by product line</h3>
           <p className="text-sm text-muted mb-3">
-            Catalog lines (controls, reagents, consumables, services) vs. custom
-            (engineering projects, OEM).
+            Consumables and reagents rise from 40% toward 60% of revenue while
+            instruments, software, services and custom projects make up the balance.
           </p>
           <StackedColumns
             categories={mixQuarters.map((q) => q.replace(/^20/, "").replace("-Q", " Q"))}
@@ -173,7 +167,14 @@ function CatalogCustomTable({ data }: { data: DashboardData }) {
     },
     {} as Record<string, number>
   );
-  const total = (rows.catalog ?? 0) + (rows.custom ?? 0);
+  const total = Object.values(rows).reduce((sum, revenue) => sum + revenue, 0);
+  const catalog = rows.catalog ?? 0;
+  const custom = rows["custom synthesis"] ?? 0;
+  const groups = [
+    { key: "catalog", label: "Catalog", revenue: catalog },
+    { key: "instrument-service", label: "Instruments & services", revenue: total - catalog - custom },
+    { key: "custom", label: "Custom synthesis", revenue: custom },
+  ];
   return (
     <table className="w-full table-base">
       <thead>
@@ -184,11 +185,11 @@ function CatalogCustomTable({ data }: { data: DashboardData }) {
         </tr>
       </thead>
       <tbody>
-        {(["catalog", "custom"] as const).map((k) => (
-          <tr key={k}>
-            <td className="capitalize">{k}</td>
-            <td className="text-right num">{fmtMoney(rows[k] ?? 0)}</td>
-            <td className="text-right num">{fmtPct(((rows[k] ?? 0) / total) * 100)}</td>
+        {groups.map((group) => (
+          <tr key={group.key}>
+            <td>{group.label}</td>
+            <td className="text-right num">{fmtMoney(group.revenue)}</td>
+            <td className="text-right num">{fmtPct((group.revenue / total) * 100)}</td>
           </tr>
         ))}
       </tbody>

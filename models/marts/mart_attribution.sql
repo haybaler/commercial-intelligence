@@ -10,11 +10,14 @@
 -- lead has with Finance every planning cycle:
 --
 --   Paid Search      <- 'Paid Search'
---   Organic & Content<- 'Organic Search', 'Content', 'Referral'
+--   Organic & Content<- 'Organic Search', 'Content'
+--   Referral         <- 'Referral'
 --   Email Nurture    <- 'Email'
 --   Webinars         <- 'Webinar'
 --   Trade Shows      <- 'Trade Show'
 --   Partner Marketing<- 'Partner'
+--   Field Demos      <- 'Field Demo'
+--   Outbound Sales   <- 'Outbound Sales'
 --
 -- Credit model for the return-per-dollar view: last-touch within 90 days.
 -- First-touch credit would flatter long-running programs (everything traces
@@ -36,11 +39,13 @@ source_to_program AS (
         ('Paid Search',      'Paid Search'),
         ('Organic Search',   'Organic & Content'),
         ('Content',          'Organic & Content'),
-        ('Referral',         'Organic & Content'),
+        ('Referral',         'Referral'),
         ('Email',            'Email Nurture'),
         ('Webinar',          'Webinars'),
         ('Trade Show',       'Trade Shows'),
-        ('Partner',          'Partner Marketing')
+        ('Partner',          'Partner Marketing'),
+        ('Field Demo',       'Field Demos'),
+        ('Outbound Sales',   'Outbound Sales')
     ) AS m(source, program)
 ),
 quarter_summary AS (

@@ -5,15 +5,14 @@ import { fmtMoney, fmtPct } from "@/lib/format";
 import { HBars, StackedColumns } from "./charts";
 
 export function AttributionView({ data }: { data: DashboardData }) {
-  const { attributionSummary, programs, quarterly } = data;
-  // use the last full quarter for KPIs (partial quarters: <200 orders)
-  const fullQuarters = new Set(quarterly.filter((q) => q.orders >= 200).map((q) => q.year_quarter));
-  const summary = attributionSummary.filter((r) => fullQuarters.has(r.year_quarter));
+  const { attributionSummary, programs } = data;
+  const summary = attributionSummary;
   const latest = summary[summary.length - 1];
 
   // aggregate program rows across all quarters for the ROI view
   const byProgram = new Map<string, { spend: number; credited: number }>();
   for (const r of programs) {
+    if (r.spend_usd == null) continue;
     const cur = byProgram.get(r.program) ?? { spend: 0, credited: 0 };
     cur.spend += r.spend_usd ?? 0;
     cur.credited += r.influenced_revenue_last_touch ?? 0;
@@ -26,13 +25,13 @@ export function AttributionView({ data }: { data: DashboardData }) {
       credited: v.credited,
       roi: v.spend > 0 ? v.credited / v.spend : null,
     }))
-    .sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0));
+    .sort((a, b) => b.credited - a.credited);
 
   const totalSpend = programRows.reduce((s, r) => s + r.spend, 0);
   const totalCredited = programRows.reduce((s, r) => s + r.credited, 0);
 
   const quarterLabels = attributionSummary.map((r) =>
-    r.year_quarter === "2026-Q4" ? "Q4* " : r.year_quarter.replace(/^20/, "").replace("-Q", " Q")
+    r.year_quarter.replace(/^20/, "").replace("-Q", " Q")
   );
 
   return (
@@ -52,13 +51,13 @@ export function AttributionView({ data }: { data: DashboardData }) {
         </div>
         <div className="card p-4">
           <div className="kpi-label">Blended return per dollar · 2 yrs</div>
-          <div className="mt-1 text-2xl font-semibold num">${totalCredited / totalSpend > 0 ? (totalCredited / totalSpend).toFixed(2) : "—"}</div>
+          <div className="mt-1 text-2xl font-semibold num">{totalSpend > 0 ? `${(totalCredited / totalSpend).toFixed(1)}x` : "—"}</div>
           <div className="mt-0.5 text-xs text-muted">credited revenue / program spend</div>
         </div>
         <div className="card p-4">
           <div className="kpi-label">Program spend · 2 yrs</div>
           <div className="mt-1 text-2xl font-semibold num">{fmtMoney(totalSpend)}</div>
-          <div className="mt-0.5 text-xs text-muted">six programs, quarterly actuals</div>
+          <div className="mt-0.5 text-xs text-muted">{programRows.length} programs, quarterly actuals</div>
         </div>
       </div>
 
@@ -92,8 +91,8 @@ export function AttributionView({ data }: { data: DashboardData }) {
         <section className="card p-5 lg:col-span-2">
           <h3 className="text-lg font-semibold">Return per dollar by program</h3>
           <p className="text-sm text-muted mb-4">
-            Last-touch-credited revenue across all quarters, divided by spend. Paid search looks
-            expensive per click and cheap per credited dollar — check the caveat below.
+            Trade Shows, Outbound Sales, Field Demos and Webinars carry the largest credited-revenue
+            volumes. Sorted by credited revenue; bar labels show return per dollar of spend.
           </p>
           <HBars
             data={programRows.map((r) => ({
@@ -101,7 +100,7 @@ export function AttributionView({ data }: { data: DashboardData }) {
               value: r.roi ?? 0,
               sub: `${fmtMoney(r.credited)} credited · ${fmtMoney(r.spend)} spend`,
             }))}
-            fmt={(v) => `$${v.toFixed(2)}`}
+            fmt={(v) => `${v.toFixed(1)}x`}
             colorFor={(d) =>
               d.value >= 2 ? "#0E7A66" : d.value >= 1 ? "#24537F" : d.value >= 0.5 ? "#B7791F" : "#B0413E"
             }
@@ -110,7 +109,8 @@ export function AttributionView({ data }: { data: DashboardData }) {
             <strong className="text-ink">Caveat:</strong> orders that close by field
             relationships (most custom/OEM work) carry no marketing credit, so program ROI
             overstates marketing&apos;s total contribution to the P&amp;L. That is a model
-            choice, not a rounding error — the README argues both sides.
+            choice, not a rounding error. Referral and Organic &amp; Content are intentionally
+            low-spend, low-volume programs rather than top-return outliers.
           </p>
         </section>
       </div>

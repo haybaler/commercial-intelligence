@@ -3,7 +3,7 @@ export type Row = Record<string, string | number | boolean | null>;
 export interface Warehouse {
   /** Run a read-only query against the attached warehouse. */
   run(sql: string): Promise<Row[]>;
-  /** Most recent quarter present in the data, e.g. "2026-Q4". */
+  /** Most recent quarter present in the data, e.g. "2024-Q4". */
   asOfQuarter: string;
   /** All quarters present, in chronological order. */
   quarters: string[];
