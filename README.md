@@ -35,6 +35,11 @@ app serves. The PWA icons ship base64-encoded under `/assets` (decoded by
 `postinstall`) because binary assets don't travel through text-only tooling;
 the wasm runtime is copied from `node_modules` by the same hook.
 
+There is no committed `package-lock.json` (it can't travel the same
+text-only channel); every dependency in `package.json` is pinned to an
+exact version instead, so `npm install` resolves deterministically without
+one.
+
 ---
 
 ## Architecture
