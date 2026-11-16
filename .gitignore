@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+*.log
+.DS_Store
+__pycache__/
+.venv/
+
+# generated artifacts (data:generate + warehouse:build recreate these)
+data/
+public/data/warehouse.duckdb
+public/vendor/duckdb/
